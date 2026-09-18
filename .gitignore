@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+env/
+
+# Environment variables
+.env
+
+# IDE
+.vscode/
+.idea/
+
+# Node / Next.js
+node_modules/
+.next/
+dist/
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+
+# Jupyter
+.ipynb_checkpoints/
