@@ -1,4 +1,4 @@
-const BASE_URL = 'http://localhost:8001';
+const BASE_URL = 'http://127.0.0.1:8001';
 
 /**
  * Check backend health status (/health)
@@ -12,7 +12,7 @@ export async function checkHealth() {
     const data = await res.json();
     return { status: 'healthy', ...data };
   } catch (err) {
-    return { status: 'offline', message: 'Unable to connect to http://localhost:8001' };
+    return { status: 'offline', message: 'Unable to connect to http://127.0.0.1:8001' };
   }
 }
 
@@ -22,22 +22,33 @@ export async function checkHealth() {
 export async function fetchModelInfo() {
   const res = await fetch(`${BASE_URL}/model-info`);
   if (!res.ok) {
-    throw new Error(`Failed to fetch model benchmark information (Status: ${res.status})`);
+    throw new Error(`Failed to fetch model information (Status: ${res.status})`);
   }
   return await res.json();
 }
 
 /**
- * Send 13 clinical patient features to /predict
+ * Send disease features for Hybrid QML Risk Prediction
+ * Supports: 'heart', 'breast-cancer', 'lung-cancer'
  */
-export async function predictPatient(patientData) {
-  const res = await fetch(`${BASE_URL}/predict`, {
+export async function predictDisease(diseaseType, payload) {
+  let endpoint = `${BASE_URL}/predict`;
+  if (diseaseType === 'heart') {
+    endpoint = `${BASE_URL}/predict/heart`;
+  } else if (diseaseType === 'breast-cancer' || diseaseType === 'breast_cancer') {
+    endpoint = `${BASE_URL}/predict/breast-cancer`;
+  } else if (diseaseType === 'lung-cancer' || diseaseType === 'lung_cancer') {
+    endpoint = `${BASE_URL}/predict/lung-cancer`;
+  }
+
+  const res = await fetch(endpoint, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify(patientData),
+    body: JSON.stringify(payload),
   });
+
   if (!res.ok) {
     const errorBody = await res.json().catch(() => ({}));
     throw new Error(errorBody.detail || `Prediction failed with status ${res.status}`);
@@ -46,19 +57,8 @@ export async function predictPatient(patientData) {
 }
 
 /**
- * Send 13 clinical patient features to /compare
+ * Backward compatible prediction helper for Heart Disease
  */
-export async function compareModels(patientData) {
-  const res = await fetch(`${BASE_URL}/compare`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(patientData),
-  });
-  if (!res.ok) {
-    const errorBody = await res.json().catch(() => ({}));
-    throw new Error(errorBody.detail || `Model comparison failed with status ${res.status}`);
-  }
-  return await res.json();
+export async function predictPatient(patientData) {
+  return predictDisease('heart', patientData);
 }

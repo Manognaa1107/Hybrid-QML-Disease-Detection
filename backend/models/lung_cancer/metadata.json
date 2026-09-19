@@ -1,0 +1,81 @@
+{
+    "dataset_name": "Survey Lung Cancer Dataset",
+    "samples": 309,
+    "feature_count": 15,
+    "target_distribution": {
+        "lung_cancer_positive": 270,
+        "lung_cancer_negative": 39
+    },
+    "train_samples": 247,
+    "test_samples": 62,
+    "num_qubits": 4,
+    "selected_quantum_features": [
+        "ALLERGY",
+        "WHEEZING",
+        "ALCOHOL CONSUMING",
+        "COUGHING"
+    ],
+    "selected_indices": [
+        8,
+        9,
+        10,
+        11
+    ],
+    "all_feature_names": [
+        "GENDER",
+        "AGE",
+        "SMOKING",
+        "YELLOW_FINGERS",
+        "ANXIETY",
+        "PEER_PRESSURE",
+        "CHRONIC DISEASE",
+        "FATIGUE",
+        "ALLERGY",
+        "WHEEZING",
+        "ALCOHOL CONSUMING",
+        "COUGHING",
+        "SHORTNESS OF BREATH",
+        "SWALLOWING DIFFICULTY",
+        "CHEST PAIN"
+    ],
+    "feature_medians": {
+        "GENDER": 1.0,
+        "AGE": 62.0,
+        "SMOKING": 1.0,
+        "YELLOW_FINGERS": 1.0,
+        "ANXIETY": 0.0,
+        "PEER_PRESSURE": 1.0,
+        "CHRONIC DISEASE": 1.0,
+        "FATIGUE": 1.0,
+        "ALLERGY": 1.0,
+        "WHEEZING": 1.0,
+        "ALCOHOL CONSUMING": 1.0,
+        "COUGHING": 1.0,
+        "SHORTNESS OF BREATH": 1.0,
+        "SWALLOWING DIFFICULTY": 0.0,
+        "CHEST PAIN": 1.0
+    },
+    "evaluation_metrics": {
+        "accuracy": 0.7419354838709677,
+        "precision": 0.8518518518518519,
+        "recall": 0.8518518518518519,
+        "f1_score": 0.8518518518518519,
+        "sensitivity": 0.8518518518518519,
+        "specificity": 0.0,
+        "roc_auc": 0.4907407407407407,
+        "confusion_matrix": [
+            [
+                0,
+                8
+            ],
+            [
+                8,
+                46
+            ]
+        ],
+        "tn": 0,
+        "fp": 8,
+        "fn": 8,
+        "tp": 46
+    }
+}

@@ -1,5 +1,6 @@
 import os
 import sys
+import json
 import warnings
 import joblib
 import pandas as pd
@@ -27,7 +28,7 @@ warnings.filterwarnings("ignore")
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MODELS_DIR = os.path.join(BASE_DIR, "models")
 
-# Global variables for pre-loaded model artifacts
+# Global variables for pre-loaded Heart Disease model artifacts
 scaler = None
 lr_model = None
 svm_model = None
@@ -36,11 +37,32 @@ quantum_selector = None
 selected_feature_names = ["thalach", "exang", "ca", "thal"]
 vqc_model = None
 
+# Global variables for Breast Cancer model artifacts
+BC_MODELS_DIR = os.path.join(MODELS_DIR, "breast_cancer")
+bc_scaler = None
+bc_selector_data = None
+bc_quantum_selector = None
+bc_selected_feature_names = []
+bc_vqc_model = None
+bc_metadata = None
+
+# Global variables for Lung Cancer model artifacts
+LC_MODELS_DIR = os.path.join(MODELS_DIR, "lung_cancer")
+lc_scaler = None
+lc_selector_data = None
+lc_quantum_selector = None
+lc_selected_feature_names = []
+lc_vqc_model = None
+lc_metadata = None
+
 
 def load_all_artifacts():
     """Load all saved scaler and model artifacts from backend/models/."""
     global scaler, lr_model, svm_model, feature_selector_data, quantum_selector, selected_feature_names, vqc_model
+    global bc_scaler, bc_selector_data, bc_quantum_selector, bc_selected_feature_names, bc_vqc_model, bc_metadata
+    global lc_scaler, lc_selector_data, lc_quantum_selector, lc_selected_feature_names, lc_vqc_model, lc_metadata
 
+    # 1. Load Heart Disease artifacts
     scaler_path = os.path.join(MODELS_DIR, "scaler.pkl")
     lr_path = os.path.join(MODELS_DIR, "logistic_regression.pkl")
     svm_path = os.path.join(MODELS_DIR, "svm.pkl")
@@ -48,33 +70,17 @@ def load_all_artifacts():
     vqc_weights_path = os.path.join(MODELS_DIR, "vqc_weights.pkl")
     vqc_model_path = os.path.join(MODELS_DIR, "vqc_model.pkl")
 
-    # 1. Load Scaler
     if os.path.exists(scaler_path):
         scaler = joblib.load(scaler_path)
-    else:
-        raise FileNotFoundError(f"Scaler file missing at {scaler_path}")
-
-    # 2. Load Logistic Regression
     if os.path.exists(lr_path):
         lr_model = joblib.load(lr_path)
-    else:
-        raise FileNotFoundError(f"Logistic Regression model file missing at {lr_path}")
-
-    # 3. Load SVM
     if os.path.exists(svm_path):
         svm_model = joblib.load(svm_path)
-    else:
-        raise FileNotFoundError(f"SVM model file missing at {svm_path}")
-
-    # 4. Load Quantum Feature Selector
     if os.path.exists(selector_path):
         feature_selector_data = joblib.load(selector_path)
         quantum_selector = feature_selector_data["selector"]
         selected_feature_names = feature_selector_data.get("feature_names", ["thalach", "exang", "ca", "thal"])
-    else:
-        raise FileNotFoundError(f"Quantum feature selector file missing at {selector_path}")
 
-    # 5. Load VQC Model
     if os.path.exists(vqc_model_path) and dill is not None:
         try:
             with open(vqc_model_path, "rb") as f:
@@ -83,7 +89,6 @@ def load_all_artifacts():
             vqc_model = None
 
     if vqc_model is None and os.path.exists(vqc_weights_path):
-        # Reconstruct VQC with saved weights as fallback
         weights_dict = joblib.load(vqc_weights_path)
         fmap = zz_feature_map(feature_dimension=4, reps=2, entanglement="linear")
         ansatz = real_amplitudes(num_qubits=4, reps=2, entanglement="linear")
@@ -93,15 +98,76 @@ def load_all_artifacts():
             optimizer=COBYLA(maxiter=50),
             sampler=StatevectorSampler()
         )
-        # Fit dummy to initialize structure, then override weights
         vqc_model.fit(np.zeros((2, 4)), np.array([0, 1]))
         vqc_model.weights = weights_dict["weights"]
+
+    # 2. Load Breast Cancer artifacts
+    if os.path.exists(BC_MODELS_DIR):
+        try:
+            bc_scaler = joblib.load(os.path.join(BC_MODELS_DIR, "scaler.pkl"))
+            bc_selector_data = joblib.load(os.path.join(BC_MODELS_DIR, "selector.pkl"))
+            bc_quantum_selector = bc_selector_data["selector"]
+            bc_selected_feature_names = bc_selector_data.get("feature_names", [])
+
+            meta_path = os.path.join(BC_MODELS_DIR, "metadata.json")
+            if os.path.exists(meta_path):
+                with open(meta_path, "r") as f:
+                    bc_metadata = json.load(f)
+
+            bc_vqc_path = os.path.join(BC_MODELS_DIR, "vqc_model.pkl")
+            if os.path.exists(bc_vqc_path) and dill is not None:
+                try:
+                    with open(bc_vqc_path, "rb") as f:
+                        bc_vqc_model = dill.load(f)
+                except Exception:
+                    bc_vqc_model = None
+
+            if bc_vqc_model is None and os.path.exists(os.path.join(BC_MODELS_DIR, "vqc_weights.pkl")):
+                weights_dict = joblib.load(os.path.join(BC_MODELS_DIR, "vqc_weights.pkl"))
+                fmap = zz_feature_map(feature_dimension=4, reps=2, entanglement="linear")
+                ansatz = real_amplitudes(num_qubits=4, reps=2, entanglement="linear")
+                bc_vqc_model = VQC(feature_map=fmap, ansatz=ansatz, optimizer=COBYLA(maxiter=50), sampler=StatevectorSampler())
+                bc_vqc_model.fit(np.zeros((2, 4)), np.array([0, 1]))
+                bc_vqc_model.weights = weights_dict["weights"]
+        except Exception as e:
+            print(f"Warning loading Breast Cancer artifacts: {e}")
+
+    # 3. Load Lung Cancer artifacts
+    if os.path.exists(LC_MODELS_DIR):
+        try:
+            lc_scaler = joblib.load(os.path.join(LC_MODELS_DIR, "scaler.pkl"))
+            lc_selector_data = joblib.load(os.path.join(LC_MODELS_DIR, "selector.pkl"))
+            lc_quantum_selector = lc_selector_data["selector"]
+            lc_selected_feature_names = lc_selector_data.get("feature_names", [])
+
+            meta_path = os.path.join(LC_MODELS_DIR, "metadata.json")
+            if os.path.exists(meta_path):
+                with open(meta_path, "r") as f:
+                    lc_metadata = json.load(f)
+
+            lc_vqc_path = os.path.join(LC_MODELS_DIR, "vqc_model.pkl")
+            if os.path.exists(lc_vqc_path) and dill is not None:
+                try:
+                    with open(lc_vqc_path, "rb") as f:
+                        lc_vqc_model = dill.load(f)
+                except Exception:
+                    lc_vqc_model = None
+
+            if lc_vqc_model is None and os.path.exists(os.path.join(LC_MODELS_DIR, "vqc_weights.pkl")):
+                weights_dict = joblib.load(os.path.join(LC_MODELS_DIR, "vqc_weights.pkl"))
+                fmap = zz_feature_map(feature_dimension=4, reps=2, entanglement="linear")
+                ansatz = real_amplitudes(num_qubits=4, reps=2, entanglement="linear")
+                lc_vqc_model = VQC(feature_map=fmap, ansatz=ansatz, optimizer=COBYLA(maxiter=50), sampler=StatevectorSampler())
+                lc_vqc_model.fit(np.zeros((2, 4)), np.array([0, 1]))
+                lc_vqc_model.weights = weights_dict["weights"]
+        except Exception as e:
+            print(f"Warning loading Lung Cancer artifacts: {e}")
 
 
 # Initialize FastAPI application
 app = FastAPI(
     title="Hybrid QML Disease Detection API",
-    description="FastAPI Backend for Hybrid Quantum-Classical Heart Disease Detection",
+    description="FastAPI Backend for Hybrid Quantum Machine Learning Disease Detection",
     version="1.0.0"
 )
 
@@ -123,7 +189,7 @@ app.add_middleware(
 )
 
 
-# Pydantic Schema for 13 Patient Clinical Features
+# Pydantic Schema for Heart Disease Patient Clinical Features
 class PatientData(BaseModel):
     age: float = Field(..., example=63.0, description="Age in years")
     sex: float = Field(..., example=1.0, description="Sex (1 = male, 0 = female)")
@@ -141,12 +207,6 @@ class PatientData(BaseModel):
 
 
 def prepare_input_features(patient: PatientData):
-    """
-    Transforms Pydantic PatientData into:
-    1. 13-feature DataFrame
-    2. Scaled 13-feature array
-    3. 4-feature quantum-ready array
-    """
     feature_dict = {
         "age": patient.age,
         "sex": patient.sex,
@@ -170,97 +230,103 @@ def prepare_input_features(patient: PatientData):
 
 @app.get("/")
 def root():
-    """API Root Endpoint."""
     return {
         "message": "Hybrid QML Disease Detection API is running",
-        "status": "success"
+        "status": "success",
+        "diseases_supported": ["Heart Disease", "Breast Cancer", "Lung Cancer"]
     }
 
 
 @app.get("/health")
 def health_check():
-    """Health check verifying model artifacts existence and readiness."""
     artifacts_ready = (
         scaler is not None and
-        lr_model is not None and
-        svm_model is not None and
-        quantum_selector is not None and
-        vqc_model is not None
+        vqc_model is not None and
+        bc_vqc_model is not None and
+        lc_vqc_model is not None
     )
 
-    if not artifacts_ready:
-        raise HTTPException(
-            status_code=500,
-            detail="Health check failed: One or more model artifacts are not loaded."
-        )
-
     return {
-        "status": "healthy"
+        "status": "healthy" if artifacts_ready else "degraded",
+        "heart_disease_ready": vqc_model is not None,
+        "breast_cancer_ready": bc_vqc_model is not None,
+        "lung_cancer_ready": lc_vqc_model is not None
     }
 
 
 @app.get("/model-info")
 def get_model_info():
-    """Returns architecture configuration and measured evaluation metrics."""
     return {
         "system_info": {
-            "models": ["Logistic Regression", "Support Vector Machine (SVM)", "Variational Quantum Classifier (VQC)"],
+            "supported_diseases": ["Heart Disease", "Breast Cancer", "Lung Cancer"],
             "vqc_qubits": 4,
-            "selected_quantum_features": selected_feature_names,
             "feature_map": "ZZFeatureMap (reps=2, entanglement='linear')",
             "ansatz": "RealAmplitudes (reps=2, entanglement='linear')",
             "optimizer": "COBYLA (maxiter=50)",
             "simulator": "Qiskit StatevectorSampler (Local Simulator)"
         },
-        "evaluation_metrics": {
-            "logistic_regression": {
-                "accuracy": 0.8689,
-                "precision": 0.8125,
-                "recall": 0.9286,
-                "f1_score": 0.8667,
-                "sensitivity": 0.9286,
-                "specificity": 0.8182,
-                "roc_auc": 0.9513
+        "diseases": {
+            "heart_disease": {
+                "features": 13,
+                "selected_quantum_features": selected_feature_names
             },
-            "svm": {
-                "accuracy": 0.8525,
-                "precision": 0.8065,
-                "recall": 0.8929,
-                "f1_score": 0.8475,
-                "sensitivity": 0.8929,
-                "specificity": 0.8182,
-                "roc_auc": 0.9437
+            "breast_cancer": {
+                "features": bc_metadata.get("feature_count", 30) if bc_metadata else 30,
+                "selected_quantum_features": bc_selected_feature_names
             },
-            "vqc": {
-                "accuracy": 0.5902,
-                "precision": 0.5714,
-                "recall": 0.4286,
-                "f1_score": 0.4898,
-                "sensitivity": 0.4286,
-                "specificity": 0.7273,
-                "roc_auc": 0.7213
+            "lung_cancer": {
+                "features": lc_metadata.get("feature_count", 15) if lc_metadata else 15,
+                "selected_quantum_features": lc_selected_feature_names
             }
         }
     }
 
 
+@app.get("/metadata/breast-cancer")
+def get_breast_cancer_metadata():
+    if bc_metadata is None:
+        raise HTTPException(status_code=404, detail="Breast Cancer metadata not found.")
+    return bc_metadata
+
+
+@app.get("/metadata/lung-cancer")
+def get_lung_cancer_metadata():
+    if lc_metadata is None:
+        raise HTTPException(status_code=404, detail="Lung Cancer metadata not found.")
+    return lc_metadata
+
+
 @app.post("/predict")
-def predict_vqc_endpoint(patient: PatientData):
+def predict_vqc_endpoint(payload: dict):
     """
-    Accepts 13 patient features, applies scaling and 4-feature quantum selection,
-    and returns the VQC risk assessment.
+    Unified prediction endpoint supporting disease routing.
+    Default: Heart Disease if 13 Heart features provided.
     """
+    disease = payload.get("disease", "").lower()
+
+    if "breast" in disease:
+        return predict_breast_cancer(payload)
+    elif "lung" in disease:
+        return predict_lung_cancer(payload)
+    else:
+        # Default Heart Disease prediction
+        try:
+            patient = PatientData(**payload)
+            return predict_heart_disease_vqc(patient)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Invalid Heart Disease payload: {str(e)}")
+
+
+@app.post("/predict/heart")
+def predict_heart_disease_vqc(patient: PatientData):
     if vqc_model is None or scaler is None or quantum_selector is None:
-        raise HTTPException(status_code=500, detail="VQC model artifacts are not loaded.")
+        raise HTTPException(status_code=500, detail="Heart Disease VQC model artifacts are not loaded.")
 
     try:
         _, quantum_features = prepare_input_features(patient)
-
-        # Get raw VQC prediction
         raw_pred = vqc_model.predict(quantum_features)
         pred_val = int(np.asarray(raw_pred).flat[0])
 
-        # Get VQC decision score (probability of class 1)
         try:
             probas = vqc_model.predict_proba(quantum_features)
             decision_score = float(round(probas[0][1], 4))
@@ -270,6 +336,7 @@ def predict_vqc_endpoint(patient: PatientData):
         label = "Elevated Risk" if pred_val == 1 else "Lower Risk"
 
         return {
+            "disease": "Heart Disease",
             "model": "Variational Quantum Classifier (VQC)",
             "prediction": pred_val,
             "label": label,
@@ -282,29 +349,119 @@ def predict_vqc_endpoint(patient: PatientData):
         raise HTTPException(status_code=500, detail=f"Prediction error: {str(e)}")
 
 
+@app.post("/predict/breast-cancer")
+@app.post("/predict/breast_cancer")
+def predict_breast_cancer(payload: dict):
+    if bc_vqc_model is None or bc_scaler is None or bc_quantum_selector is None:
+        raise HTTPException(status_code=500, detail="Breast Cancer VQC model artifacts are not loaded.")
+
+    try:
+        all_features = bc_metadata.get("all_feature_names", []) if bc_metadata else []
+        medians = bc_metadata.get("feature_medians", {}) if bc_metadata else {}
+
+        row = {}
+        for feature in all_features:
+            if feature in payload:
+                row[feature] = float(payload[feature])
+            elif feature in medians:
+                row[feature] = float(medians[feature])
+            else:
+                row[feature] = 0.0
+
+        df = pd.DataFrame([row])
+        scaled = bc_scaler.transform(df)
+        q_features = bc_quantum_selector.transform(scaled)
+
+        raw_pred = bc_vqc_model.predict(q_features)
+        pred_val = int(np.asarray(raw_pred).flat[0])
+
+        try:
+            probas = bc_vqc_model.predict_proba(q_features)
+            decision_score = float(round(probas[0][1], 4))
+        except Exception:
+            decision_score = None
+
+        label = "Elevated Risk (Malignant)" if pred_val == 1 else "Lower Risk (Benign)"
+
+        return {
+            "disease": "Breast Cancer",
+            "model": "Variational Quantum Classifier (VQC)",
+            "prediction": pred_val,
+            "label": label,
+            "status": "success",
+            "decision_score": decision_score,
+            "selected_quantum_features": bc_selected_feature_names,
+            "qubits": 4
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Breast Cancer prediction error: {str(e)}")
+
+
+@app.post("/predict/lung-cancer")
+@app.post("/predict/lung_cancer")
+def predict_lung_cancer(payload: dict):
+    if lc_vqc_model is None or lc_scaler is None or lc_quantum_selector is None:
+        raise HTTPException(status_code=500, detail="Lung Cancer VQC model artifacts are not loaded.")
+
+    try:
+        all_features = lc_metadata.get("all_feature_names", []) if lc_metadata else []
+        medians = lc_metadata.get("feature_medians", {}) if lc_metadata else {}
+
+        row = {}
+        for feature in all_features:
+            if feature in payload:
+                row[feature] = float(payload[feature])
+            elif feature in medians:
+                row[feature] = float(medians[feature])
+            else:
+                row[feature] = 0.0
+
+        df = pd.DataFrame([row])
+        scaled = lc_scaler.transform(df)
+        q_features = lc_quantum_selector.transform(scaled)
+
+        raw_pred = lc_vqc_model.predict(q_features)
+        pred_val = int(np.asarray(raw_pred).flat[0])
+
+        try:
+            probas = lc_vqc_model.predict_proba(q_features)
+            decision_score = float(round(probas[0][1], 4))
+        except Exception:
+            decision_score = None
+
+        label = "Elevated Risk (Lung Cancer Positive)" if pred_val == 1 else "Lower Risk (Lung Cancer Negative)"
+
+        return {
+            "disease": "Lung Cancer",
+            "model": "Variational Quantum Classifier (VQC)",
+            "prediction": pred_val,
+            "label": label,
+            "status": "success",
+            "decision_score": decision_score,
+            "selected_quantum_features": lc_selected_feature_names,
+            "qubits": 4
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Lung Cancer prediction error: {str(e)}")
+
+
 @app.post("/compare")
 def compare_models_endpoint(patient: PatientData):
-    """
-    Runs patient data through Logistic Regression, SVM, and VQC models in parallel
-    and returns individual model predictions and scores/probabilities.
-    """
+    """Preserved classical-vs-quantum comparison endpoint for Heart Disease."""
     if lr_model is None or svm_model is None or vqc_model is None:
         raise HTTPException(status_code=500, detail="One or more model artifacts are not loaded.")
 
     try:
         scaled_features, quantum_features = prepare_input_features(patient)
 
-        # 1. Logistic Regression
         lr_pred = int(lr_model.predict(scaled_features)[0])
         lr_prob = float(round(lr_model.predict_proba(scaled_features)[0][1], 4))
         lr_label = "Elevated Risk" if lr_pred == 1 else "Lower Risk"
 
-        # 2. Support Vector Machine (SVM)
         svm_pred = int(svm_model.predict(scaled_features)[0])
         svm_prob = float(round(svm_model.predict_proba(scaled_features)[0][1], 4))
         svm_label = "Elevated Risk" if svm_pred == 1 else "Lower Risk"
 
-        # 3. Variational Quantum Classifier (VQC)
         raw_vqc_pred = vqc_model.predict(quantum_features)
         vqc_pred = int(np.asarray(raw_vqc_pred).flat[0])
         vqc_label = "Elevated Risk" if vqc_pred == 1 else "Lower Risk"
