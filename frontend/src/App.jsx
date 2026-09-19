@@ -1,5 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { checkHealth } from './api';
+import { useAuth } from './context/AuthContext';
+import LandingPage from './components/LandingPage';
+import SignInSelection from './pages/SignInSelection';
+import DoctorLogin from './pages/DoctorLogin';
+import PatientLogin from './pages/PatientLogin';
+import PatientRegister from './pages/PatientRegister';
 import Sidebar from './components/Sidebar';
 import DashboardPage from './components/DashboardPage';
 import NewScreeningPage from './components/NewScreeningPage';
@@ -7,11 +13,16 @@ import DiseaseScreeningPage from './components/DiseaseScreeningPage';
 import PredictionResultsPage from './components/PredictionResultsPage';
 
 export default function App() {
-  const [currentView, setCurrentView] = useState('dashboard'); // 'dashboard' | 'new_screening' | 'screening' | 'results'
+  const { user, loading: authLoading } = useAuth();
+
+  // Public routing state (when !user): 'landing' | 'signin_select' | 'doctor_login' | 'patient_login' | 'patient_register'
+  const [publicView, setPublicView] = useState('landing');
+
+  // Authenticated routing state (when user exists): 'dashboard' | 'new_screening' | 'screening' | 'results'
+  const [currentView, setCurrentView] = useState('dashboard');
   const [selectedDisease, setSelectedDisease] = useState('heart');
   const [predictionResult, setPredictionResult] = useState(null);
-  const [healthStatus, setHealthStatus] = useState('loading');
-  
+
   // Session-based Recent Screenings history
   const [recentScreenings, setRecentScreenings] = useState(() => {
     try {
@@ -25,8 +36,7 @@ export default function App() {
   // Check Backend Connection on Mount
   useEffect(() => {
     async function init() {
-      const health = await checkHealth();
-      setHealthStatus(health.status);
+      await checkHealth();
     }
     init();
   }, []);
@@ -100,6 +110,70 @@ export default function App() {
     setCurrentView('dashboard');
   };
 
+  // 1. Loading State
+  if (authLoading) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', background: 'var(--bg-main)' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div className="brand-logo-circle" style={{ margin: '0 auto 12px auto', width: 44, height: 44 }}>⚛</div>
+          <p style={{ color: 'var(--text-muted)', fontWeight: 500, fontSize: '0.9rem' }}>Initializing Hybrid QML...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // 2. Unauthenticated State -> Show Public Pages ONLY (No Sidebar)
+  if (!user) {
+    if (publicView === 'signin_select') {
+      return (
+        <SignInSelection
+          onSelectDoctor={() => setPublicView('doctor_login')}
+          onSelectPatient={() => setPublicView('patient_login')}
+          onBackToHome={() => setPublicView('landing')}
+        />
+      );
+    }
+
+    if (publicView === 'doctor_login') {
+      return (
+        <div className="landing-public-wrapper">
+          <DoctorLogin
+            onLoginSuccess={() => setPublicView('landing')}
+            onBack={() => setPublicView('signin_select')}
+          />
+        </div>
+      );
+    }
+
+    if (publicView === 'patient_login') {
+      return (
+        <PatientLogin
+          onLoginSuccess={() => setPublicView('landing')}
+          onGoToRegister={() => setPublicView('patient_register')}
+          onBack={() => setPublicView('signin_select')}
+        />
+      );
+    }
+
+    if (publicView === 'patient_register') {
+      return (
+        <PatientRegister
+          onRegisterSuccess={() => setPublicView('landing')}
+          onGoToLogin={() => setPublicView('patient_login')}
+          onBack={() => setPublicView('patient_login')}
+        />
+      );
+    }
+
+    // Default Public View: Landing Page
+    return (
+      <LandingPage
+        onOpenAuth={() => setPublicView('signin_select')}
+      />
+    );
+  }
+
+  // 3. Authenticated State -> Show Main Application Shell & Dashboard (With Sidebar)
   return (
     <div className="app-shell">
       <div className="app-layout">
@@ -151,3 +225,5 @@ export default function App() {
     </div>
   );
 }
+
+

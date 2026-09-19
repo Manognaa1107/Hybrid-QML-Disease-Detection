@@ -1,12 +1,25 @@
 import React, { useState } from 'react';
-import { LayoutDashboard, Stethoscope, BarChart3, Atom } from 'lucide-react';
+import { LayoutDashboard, Stethoscope, BarChart3, Atom, UserCheck, LogOut } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { signOut } from 'firebase/auth';
+import { auth } from '../lib/firebase';
 
 export default function Sidebar({ currentView, setCurrentView, onNewScreening, onOpenResults }) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { user, role } = useAuth();
 
   const handleNavClick = (action) => {
     setMobileOpen(false);
     action();
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      setCurrentView('dashboard');
+    } catch (e) {
+      console.error('Logout error:', e);
+    }
   };
 
   const isScreeningActive = currentView === 'new_screening' || currentView === 'screening';
@@ -43,13 +56,15 @@ export default function Sidebar({ currentView, setCurrentView, onNewScreening, o
               <span className="nav-text">Dashboard</span>
             </button>
 
-            <button
-              className={`nav-item ${isScreeningActive ? 'active' : ''}`}
-              onClick={() => handleNavClick(onNewScreening)}
-            >
-              <Stethoscope size={18} className="nav-icon-svg" />
-              <span className="nav-text">New Screening</span>
-            </button>
+            {role !== 'patient' && (
+              <button
+                className={`nav-item ${isScreeningActive ? 'active' : ''}`}
+                onClick={() => handleNavClick(onNewScreening)}
+              >
+                <Stethoscope size={18} className="nav-icon-svg" />
+                <span className="nav-text">New Screening</span>
+              </button>
+            )}
 
             <button
               className={`nav-item ${currentView === 'results' ? 'active' : ''}`}
@@ -57,6 +72,24 @@ export default function Sidebar({ currentView, setCurrentView, onNewScreening, o
             >
               <BarChart3 size={18} className="nav-icon-svg" />
               <span className="nav-text">Prediction Results</span>
+            </button>
+          </div>
+
+          <div style={{ marginTop: 'auto', paddingTop: '16px', borderTop: '1px solid var(--border-light)' }}>
+            <div style={{ fontSize: '0.775rem', color: 'var(--primary)', fontWeight: 600, marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <UserCheck size={14} />
+              <span>{role === 'doctor' ? 'Doctor Portal' : 'Patient Portal'}</span>
+            </div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '10px', wordBreak: 'break-all' }}>
+              {user?.email}
+            </div>
+            <button
+              className="nav-item"
+              style={{ color: '#b33325', padding: '8px 12px' }}
+              onClick={handleLogout}
+            >
+              <LogOut size={16} />
+              <span className="nav-text">Sign Out</span>
             </button>
           </div>
         </nav>
@@ -72,4 +105,5 @@ export default function Sidebar({ currentView, setCurrentView, onNewScreening, o
     </>
   );
 }
+
 
