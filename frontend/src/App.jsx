@@ -11,16 +11,22 @@ import DashboardPage from './components/DashboardPage';
 import NewScreeningPage from './components/NewScreeningPage';
 import DiseaseScreeningPage from './components/DiseaseScreeningPage';
 import PredictionResultsPage from './components/PredictionResultsPage';
+import PatientDashboardPage from './components/PatientDashboardPage';
+import MyReportsPage from './components/MyReportsPage';
+import ScreeningHistoryPage from './components/ScreeningHistoryPage';
 
 export default function App() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, role, loading: authLoading } = useAuth();
 
   // Public routing state (when !user): 'landing' | 'signin_select' | 'doctor_login' | 'patient_login' | 'patient_register'
   const [publicView, setPublicView] = useState('landing');
 
-  // Authenticated routing state (when user exists): 'dashboard' | 'new_screening' | 'screening' | 'results'
+  // Authenticated routing state (when user exists)
+  // Doctor views: 'dashboard' | 'new_screening' | 'screening' | 'results'
+  // Patient views: 'dashboard' | 'my_reports' | 'screening_history'
   const [currentView, setCurrentView] = useState('dashboard');
   const [selectedDisease, setSelectedDisease] = useState('heart');
+  const [selectedPatient, setSelectedPatient] = useState(null);
   const [predictionResult, setPredictionResult] = useState(null);
 
   // Session-based Recent Screenings history
@@ -51,7 +57,10 @@ export default function App() {
   }, [recentScreenings]);
 
   // Navigate to Disease Screening form
-  const handleSelectDisease = (diseaseId) => {
+  const handleSelectDisease = (diseaseId, patientData) => {
+    if (patientData) {
+      setSelectedPatient(patientData);
+    }
     setSelectedDisease(diseaseId);
     setCurrentView('screening');
   };
@@ -67,13 +76,18 @@ export default function App() {
   };
 
   // Form submit on Disease Screening -> Save to recent list and navigate to Results
-  const handleResultReceived = (result, diseaseId) => {
+  const handleResultReceived = (result, diseaseId, inputsData) => {
     const formattedTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const diseaseName = result.disease || (
       diseaseId === 'heart' ? 'Heart Disease' :
       diseaseId === 'breast_cancer' ? 'Breast Cancer' :
       diseaseId === 'lung_cancer' ? 'Lung Cancer' : 'Disease'
     );
+
+    const fullResult = {
+      ...result,
+      inputs: inputsData || result.inputs || {}
+    };
 
     const newScreeningEntry = {
       id: Date.now(),
@@ -82,10 +96,10 @@ export default function App() {
       label: result.label,
       prediction: result.prediction,
       timeStr: `Today, ${formattedTime}`,
-      resultData: result
+      resultData: fullResult
     };
 
-    setPredictionResult(result);
+    setPredictionResult(fullResult);
     setSelectedDisease(diseaseId);
     setRecentScreenings((prev) => [newScreeningEntry, ...prev]);
     setCurrentView('results');
@@ -116,7 +130,7 @@ export default function App() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', background: 'var(--bg-main)' }}>
         <div style={{ textAlign: 'center' }}>
           <div className="brand-logo-circle" style={{ margin: '0 auto 12px auto', width: 44, height: 44 }}>⚛</div>
-          <p style={{ color: 'var(--text-muted)', fontWeight: 500, fontSize: '0.9rem' }}>Initializing Hybrid QML...</p>
+          <p style={{ color: 'var(--text-muted)', fontWeight: 500, fontSize: '0.9rem' }}>Initializing EarlyQ...</p>
         </div>
       </div>
     );
@@ -147,13 +161,16 @@ export default function App() {
 
     if (publicView === 'patient_login') {
       return (
-        <PatientLogin
-          onLoginSuccess={() => setPublicView('landing')}
-          onGoToRegister={() => setPublicView('patient_register')}
-          onBack={() => setPublicView('signin_select')}
-        />
+        <div className="landing-public-wrapper">
+          <PatientLogin
+            onLoginSuccess={() => setPublicView('landing')}
+            onGoToRegister={() => setPublicView('patient_register')}
+            onBack={() => setPublicView('signin_select')}
+          />
+        </div>
       );
     }
+
 
     if (publicView === 'patient_register') {
       return (
@@ -173,7 +190,10 @@ export default function App() {
     );
   }
 
-  // 3. Authenticated State -> Show Main Application Shell & Dashboard (With Sidebar)
+  // 3. Authenticated State -> Show Role-based Application Shell (With Sidebar)
+  const isDoctor = role === 'doctor' || user?.email?.toLowerCase() === 'doctor@hybridqml.com';
+  const isPatient = !isDoctor;
+
   return (
     <div className="app-shell">
       <div className="app-layout">
@@ -185,45 +205,63 @@ export default function App() {
         />
 
         <main className="app-main-content">
-          {/* VIEW 1: DASHBOARD */}
-          {currentView === 'dashboard' && (
-            <DashboardPage
-              onStartScreening={handleNewScreening}
-            />
-          )}
+          {/* PATIENT INTERFACE VIEWS */}
+          {isPatient ? (
+            <>
+              {currentView === 'my_reports' && <MyReportsPage />}
 
-          {/* VIEW 2: NEW SCREENING (DISEASE SELECTION) */}
-          {currentView === 'new_screening' && (
-            <NewScreeningPage
-              onSelectDisease={handleSelectDisease}
-            />
-          )}
+              {currentView === 'screening_history' && <ScreeningHistoryPage />}
 
-          {/* VIEW 3: DISEASE SCREENING FORM */}
-          {currentView === 'screening' && (
-            <DiseaseScreeningPage
-              selectedDisease={selectedDisease}
-              onBackToDashboard={handleBackToDashboard}
-              onResultReceived={handleResultReceived}
-            />
-          )}
+              {(currentView !== 'my_reports' && currentView !== 'screening_history') && (
+                <PatientDashboardPage
+                  onGoToReports={() => setCurrentView('my_reports')}
+                  onGoToHistory={() => setCurrentView('screening_history')}
+                />
+              )}
+            </>
+          ) : (
+            /* DOCTOR INTERFACE VIEWS */
+            <>
+              {currentView === 'new_screening' && (
+                <NewScreeningPage
+                  onSelectDisease={handleSelectDisease}
+                />
+              )}
 
-          {/* VIEW 4: PREDICTION RESULTS */}
-          {currentView === 'results' && (
-            <PredictionResultsPage
-              predictionResult={predictionResult}
-              selectedDisease={selectedDisease}
-              recentScreenings={recentScreenings}
-              onRunAnotherScreening={handleRunAnotherScreening}
-              onBackToDashboard={handleBackToDashboard}
-              onStartScreening={handleNewScreening}
-              onSelectRecentItem={handleSelectRecentItem}
-            />
+              {currentView === 'screening' && (
+                <DiseaseScreeningPage
+                  selectedDisease={selectedDisease}
+                  selectedPatient={selectedPatient}
+                  onBackToDashboard={handleBackToDashboard}
+                  onResultReceived={handleResultReceived}
+                />
+              )}
+
+              {currentView === 'results' && (
+                <PredictionResultsPage
+                  predictionResult={predictionResult}
+                  selectedDisease={selectedDisease}
+                  selectedPatient={selectedPatient}
+                  recentScreenings={recentScreenings}
+                  onRunAnotherScreening={handleRunAnotherScreening}
+                  onBackToDashboard={handleBackToDashboard}
+                  onStartScreening={handleNewScreening}
+                  onSelectRecentItem={handleSelectRecentItem}
+                />
+              )}
+
+              {(currentView !== 'new_screening' && currentView !== 'screening' && currentView !== 'results') && (
+                <DashboardPage
+                  onStartScreening={handleNewScreening}
+                />
+              )}
+            </>
           )}
         </main>
       </div>
     </div>
   );
 }
+
 
 

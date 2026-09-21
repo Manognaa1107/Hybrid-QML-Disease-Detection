@@ -1,15 +1,22 @@
-import React from 'react';
-import { HeartPulse, Activity, Stethoscope, BarChart3, Atom, Cpu, ArrowRight, ArrowLeft, CheckCircle2, AlertTriangle, History, Clock } from 'lucide-react';
+import React, { useState } from 'react';
+import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { auth, db } from '../lib/firebase';
+import { HeartPulse, Activity, Stethoscope, BarChart3, Atom, Cpu, ArrowRight, ArrowLeft, CheckCircle2, AlertTriangle, History, Clock, User, Save, Loader2, Check } from 'lucide-react';
 
 export default function PredictionResultsPage({
   predictionResult,
   selectedDisease,
+  selectedPatient,
   recentScreenings = [],
   onRunAnotherScreening,
   onBackToDashboard,
   onStartScreening,
   onSelectRecentItem
 }) {
+  const [saving, setSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [saveError, setSaveError] = useState(null);
+
   // 1. EMPTY STATE IF NO PREDICTION EXISTS
   if (!predictionResult) {
     return (
@@ -45,6 +52,37 @@ export default function PredictionResultsPage({
   const decisionScore = predictionResult.decision_score;
   const selectedFeatures = predictionResult.selected_quantum_features || [];
 
+  const handleSaveScreening = async () => {
+    setSaveError(null);
+    setSaving(true);
+    try {
+      const currentDoctorUid = auth.currentUser ? auth.currentUser.uid : '';
+      const screeningDocData = {
+        patientUid: selectedPatient?.selectedPatientUid || '',
+        patientId: selectedPatient?.selectedPatientId || '',
+        patientName: selectedPatient?.selectedPatientName || '',
+        doctorUid: currentDoctorUid,
+        disease: diseaseName,
+        diseaseId: diseaseKey,
+        inputs: predictionResult.inputs || {},
+        prediction: predictionResult.prediction,
+        label: predictionResult.label || (predictionResult.prediction === 1 ? 'High Risk' : 'Low Risk'),
+        decisionScore: predictionResult.decision_score ?? null,
+        selectedQuantumFeatures: predictionResult.selected_quantum_features || [],
+        qubits: predictionResult.qubits || 4,
+        createdAt: serverTimestamp()
+      };
+
+      await addDoc(collection(db, 'screenings'), screeningDocData);
+      setSaveSuccess(true);
+    } catch (err) {
+      console.error('Error saving screening to Firestore:', err);
+      setSaveError('Unable to save screening. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="results-view-container">
       {/* SECTION A: CURRENT PREDICTION */}
@@ -53,7 +91,14 @@ export default function PredictionResultsPage({
         <div className="results-page-header">
           <span className="section-kicker-tag">CURRENT PREDICTION</span>
           <h2>Prediction Results</h2>
-          <p>Result from the Hybrid QML model.</p>
+          <p>
+            Result from the Hybrid QML model.
+            {selectedPatient && (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', marginLeft: '12px', background: 'var(--bg-tertiary)', padding: '2px 10px', borderRadius: '12px', fontSize: '0.8rem', color: 'var(--primary)', fontWeight: '600' }}>
+                <User size={13} /> {selectedPatient.selectedPatientName} ({selectedPatient.selectedPatientId || selectedPatient.selectedPatientEmail})
+              </span>
+            )}
+          </p>
         </div>
 
         {/* Primary Result Status Card */}
@@ -185,8 +230,56 @@ export default function PredictionResultsPage({
         </div>
       </div>
 
+      {/* Save Screening Status Banners */}
+      {saveSuccess && (
+        <div className="form-error-banner" role="alert" style={{ background: 'var(--risk-low-bg)', border: '1px solid var(--risk-low-border)', color: 'var(--risk-low-text)', marginBottom: '16px' }}>
+          <CheckCircle2 size={18} />
+          <span>Screening saved successfully.</span>
+        </div>
+      )}
+
+      {saveError && (
+        <div className="form-error-banner" role="alert" style={{ marginBottom: '16px' }}>
+          <AlertTriangle size={18} />
+          <span>{saveError}</span>
+        </div>
+      )}
+
       {/* Primary Navigation Actions */}
-      <div className="results-cta-bar">
+      <div className="results-cta-bar" style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+        <button
+          className="run-qml-btn"
+          onClick={handleSaveScreening}
+          disabled={saving || saveSuccess}
+          style={{
+            background: saveSuccess ? 'var(--risk-low-bg)' : 'var(--primary)',
+            color: saveSuccess ? 'var(--risk-low-text)' : '#ffffff',
+            border: saveSuccess ? '1px solid var(--risk-low-border)' : 'none',
+            opacity: (saving || saveSuccess) ? 0.85 : 1,
+            cursor: (saving || saveSuccess) ? 'default' : 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}
+        >
+          {saving ? (
+            <>
+              <Loader2 size={18} className="btn-spinner" />
+              Saving...
+            </>
+          ) : saveSuccess ? (
+            <>
+              <Check size={18} />
+              Screening Saved
+            </>
+          ) : (
+            <>
+              <Save size={18} />
+              Save Screening
+            </>
+          )}
+        </button>
+
         <button className="run-another-btn" onClick={onRunAnotherScreening}>
           Run Another Screening <ArrowRight size={18} />
         </button>

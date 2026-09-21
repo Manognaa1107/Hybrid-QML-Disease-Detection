@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { auth } from '../lib/firebase';
+import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { auth, db } from '../lib/firebase';
+import { ensurePatientProfile } from '../lib/patientId';
 import { User, Lock, Mail, AlertCircle, ArrowLeft, Loader2, UserPlus, Atom } from 'lucide-react';
 
 export default function PatientRegister({ onRegisterSuccess, onGoToLogin, onBack }) {
@@ -15,9 +17,10 @@ export default function PatientRegister({ onRegisterSuccess, onGoToLogin, onBack
     e.preventDefault();
     setError(null);
 
+    const cleanName = fullName.trim();
     const cleanEmail = email.trim().toLowerCase();
 
-    if (!cleanEmail || !password) {
+    if (!cleanName || !cleanEmail || !password || !confirmPassword) {
       setError('Please fill in all required fields.');
       return;
     }
@@ -35,32 +38,46 @@ export default function PatientRegister({ onRegisterSuccess, onGoToLogin, onBack
     setLoading(true);
 
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, cleanEmail, password);
-      const user = userCredential.user;
+      const result = await createUserWithEmailAndPassword(auth, cleanEmail, password);
+      const user = result.user;
+      console.log("Firebase patient user created:", user.uid);
 
-      // Set role as "patient" in localStorage
+      // Update Firebase user's displayName with Full Name
+      if (cleanName) {
+        await updateProfile(user, { displayName: cleanName });
+      }
+
+      console.log("Creating Firestore patient profile...");
+      const patientId = await ensurePatientProfile(user, cleanName);
+
+      // Store patient role using existing AuthContext/localStorage mechanism
       localStorage.setItem(`userRole_${user.uid}`, 'patient');
-      if (fullName.trim()) {
-        localStorage.setItem(`patientName_${user.uid}`, fullName.trim());
+      localStorage.setItem(`patientName_${user.uid}`, cleanName);
+      if (patientId) {
+        localStorage.setItem(`patientId_${user.uid}`, patientId);
       }
 
       setLoading(false);
       if (onRegisterSuccess) {
         onRegisterSuccess();
       }
-    } catch (err) {
-      console.error('Patient registration error:', err);
+    } catch (error) {
+      console.error("Firestore patient profile creation failed:", error);
+      if (error.code) {
+        console.error("Firebase error code:", error.code);
+      }
+
       setLoading(false);
 
-      let friendlyMessage = 'Registration failed. Please check your details and try again.';
-      if (err.code === 'auth/email-already-in-use') {
+      let friendlyMessage = error.message || 'Registration failed. Please check your details and try again.';
+      if (error.code === 'auth/email-already-in-use') {
         friendlyMessage = 'An account with this email already exists.';
-      } else if (err.code === 'auth/invalid-email') {
+      } else if (error.code === 'auth/invalid-email') {
         friendlyMessage = 'Please enter a valid email address.';
-      } else if (err.code === 'auth/weak-password') {
+      } else if (error.code === 'auth/weak-password') {
         friendlyMessage = 'Password must be at least 6 characters long.';
-      } else if (err.code === 'auth/network-request-failed') {
-        friendlyMessage = 'Network connection issue. Please check your internet connection.';
+      } else if (error.code === 'permission-denied' || (error.message && error.message.includes('permission'))) {
+        friendlyMessage = 'Firestore Permission Denied: Ensure Firestore rules in Firebase Console allow writes to users/{uid} for authenticated users.';
       }
 
       setError(friendlyMessage);
@@ -78,9 +95,9 @@ export default function PatientRegister({ onRegisterSuccess, onGoToLogin, onBack
           <span className="brand-title">Hybrid QML</span>
         </div>
 
-        {onBack && (
-          <button className="back-link-btn" onClick={onBack}>
-            <ArrowLeft size={16} /> Back to Sign In
+        {(onGoToLogin || onBack) && (
+          <button className="back-link-btn" onClick={onGoToLogin || onBack}>
+            <ArrowLeft size={16} /> Back to Patient Login
           </button>
         )}
       </header>
@@ -111,7 +128,7 @@ export default function PatientRegister({ onRegisterSuccess, onGoToLogin, onBack
           <form onSubmit={handleRegister} className="doctor-login-form">
             <div className="form-field-group">
               <label className="field-label" htmlFor="register-name">
-                Full Name (Optional)
+                Full Name
               </label>
               <div className="input-with-icon">
                 <User size={18} className="input-icon" />
@@ -123,6 +140,7 @@ export default function PatientRegister({ onRegisterSuccess, onGoToLogin, onBack
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
                   disabled={loading}
+                  required
                 />
               </div>
             </div>
@@ -192,12 +210,12 @@ export default function PatientRegister({ onRegisterSuccess, onGoToLogin, onBack
               {loading ? (
                 <>
                   <Loader2 size={18} className="btn-spinner" />
-                  Creating Account...
+                  Creating Patient Account...
                 </>
               ) : (
                 <>
                   <UserPlus size={18} />
-                  Register Account
+                  Create Patient Account
                 </>
               )}
             </button>
@@ -210,9 +228,9 @@ export default function PatientRegister({ onRegisterSuccess, onGoToLogin, onBack
             <button
               className="auth-link-btn"
               style={{ fontSize: '0.9rem' }}
-              onClick={onGoToLogin}
+              onClick={onGoToLogin || onBack}
             >
-              Patient Sign In →
+              Back to Patient Login →
             </button>
           </div>
         </div>

@@ -62,3 +62,25 @@ export async function predictDisease(diseaseType, payload) {
 export async function predictPatient(patientData) {
   return predictDisease('heart', patientData);
 }
+
+/**
+ * Upload medical report for disease-specific parameter extraction (/extract-report)
+ */
+export async function extractReport(file, disease) {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('disease', disease);
+
+  const res = await fetch(`${BASE_URL}/extract-report`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const errorBody = await res.json().catch(() => ({}));
+    throw new Error(errorBody.detail || `Report extraction failed with status ${res.status}`);
+  }
+
+  return await res.json();
+}
+

@@ -1,15 +1,14 @@
 import React, { useState } from 'react';
 import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
-import { auth } from '../lib/firebase';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { auth, db } from '../lib/firebase';
 import { Stethoscope, Lock, Mail, AlertCircle, ArrowLeft, Loader2 } from 'lucide-react';
-
 
 export default function DoctorLogin({ onLoginSuccess, onBack }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
-
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -45,6 +44,24 @@ export default function DoctorLogin({ onLoginSuccess, onBack }) {
       // Save user role in localStorage
       localStorage.setItem(`userRole_${firebaseUser.uid}`, 'doctor');
 
+      const doctorDocRef = doc(db, "users", firebaseUser.uid);
+      const docSnap = await getDoc(doctorDocRef);
+
+      if (!docSnap.exists()) {
+        await setDoc(doctorDocRef, {
+          name: "Doctor",
+          email: firebaseUser.email,
+          role: "doctor",
+          createdAt: serverTimestamp()
+        });
+      } else {
+        await setDoc(doctorDocRef, {
+          name: "Doctor",
+          email: firebaseUser.email,
+          role: "doctor"
+        }, { merge: true });
+      }
+
       setLoading(false);
       if (onLoginSuccess) {
         onLoginSuccess();
@@ -66,6 +83,8 @@ export default function DoctorLogin({ onLoginSuccess, onBack }) {
         friendlyMessage = 'Too many failed login attempts. Please try again later.';
       } else if (err.code === 'auth/network-request-failed') {
         friendlyMessage = 'Network error. Please check your internet connection.';
+      } else if (err.code === 'permission-denied' || (err.message && err.message.includes('permission'))) {
+        friendlyMessage = 'Firestore Permission Denied: Ensure Firestore rules in Firebase Console allow authenticated users to read/write users/{uid}.';
       }
 
       setError(friendlyMessage);
@@ -75,9 +94,9 @@ export default function DoctorLogin({ onLoginSuccess, onBack }) {
   return (
     <div className="doctor-login-view">
       {onBack && (
-        <div className="screening-top-bar">
+        <div className="screening-top-bar" style={{ maxWidth: '440px', margin: '0 auto 16px auto', padding: 0 }}>
           <button className="back-link-btn" onClick={onBack}>
-            <ArrowLeft size={16} /> Back to Dashboard
+            <ArrowLeft size={16} /> Back to Sign In
           </button>
         </div>
       )}
@@ -89,9 +108,9 @@ export default function DoctorLogin({ onLoginSuccess, onBack }) {
               <Stethoscope size={28} />
             </div>
             <span className="hero-badge-pill">Authorized Medical Portal</span>
-            <h2 className="doctor-login-title">Doctor Login</h2>
+            <h2 className="doctor-login-title">Doctor Sign In</h2>
             <p className="doctor-login-subtitle">
-              Sign in with your authorized medical practitioner account to access QML screening diagnostics.
+              Sign in with your authorized practitioner account to access EarlyQ screening diagnostics.
             </p>
           </div>
 
@@ -162,7 +181,7 @@ export default function DoctorLogin({ onLoginSuccess, onBack }) {
 
           <div className="doctor-login-footer">
             <p className="footer-notice">
-              🔒 Access is restricted strictly to doctor@hybridqml.com.
+              🔒 Access is restricted strictly to authorized medical personnel.
             </p>
           </div>
         </div>

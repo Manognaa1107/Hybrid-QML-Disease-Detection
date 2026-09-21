@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '../lib/firebase';
-import { User, Lock, Mail, AlertCircle, ArrowLeft, Loader2, Atom } from 'lucide-react';
+import { User, Lock, Mail, AlertCircle, ArrowLeft, Loader2 } from 'lucide-react';
 
 export default function PatientLogin({ onLoginSuccess, onGoToRegister, onBack }) {
   const [email, setEmail] = useState('');
@@ -60,36 +60,25 @@ export default function PatientLogin({ onLoginSuccess, onGoToRegister, onBack })
   };
 
   return (
-    <div className="landing-public-wrapper">
-      {/* Minimal Header */}
-      <header className="landing-minimal-header">
-        <div className="landing-brand">
-          <div className="brand-logo-circle">
-            <Atom size={22} />
-          </div>
-          <span className="brand-title">Hybrid QML</span>
-        </div>
-
-        {onBack && (
+    <div className="doctor-login-view">
+      {onBack && (
+        <div className="screening-top-bar" style={{ maxWidth: '440px', margin: '0 auto 16px auto', padding: 0 }}>
           <button className="back-link-btn" onClick={onBack}>
             <ArrowLeft size={16} /> Back to Sign In
           </button>
-        )}
-      </header>
+        </div>
+      )}
 
-      {/* Login Card Container */}
-      <main className="doctor-login-container">
+      <div className="doctor-login-container">
         <div className="doctor-login-card">
           <div className="doctor-login-header">
-            <div className="doctor-badge-icon" style={{ background: '#e7f0e7', color: '#132e1e' }}>
+            <div className="doctor-badge-icon" style={{ background: 'var(--bg-tertiary)', color: 'var(--primary)' }}>
               <User size={28} />
             </div>
-            <span className="hero-badge-pill" style={{ background: '#e7f0e7', color: '#132e1e' }}>
-              Patient Portal
-            </span>
+            <span className="hero-badge-pill">Patient Portal</span>
             <h2 className="doctor-login-title">Patient Sign In</h2>
             <p className="doctor-login-subtitle">
-              Sign in to view your disease screening reports.
+              Sign in to view your EarlyQ disease screening reports and diagnostic history.
             </p>
           </div>
 
@@ -103,7 +92,7 @@ export default function PatientLogin({ onLoginSuccess, onGoToRegister, onBack })
           <form onSubmit={handleLogin} className="doctor-login-form">
             <div className="form-field-group">
               <label className="field-label" htmlFor="patient-email">
-                Email Address
+                Patient Email Address
               </label>
               <div className="input-with-icon">
                 <Mail size={18} className="input-icon" />
@@ -160,18 +149,18 @@ export default function PatientLogin({ onLoginSuccess, onGoToRegister, onBack })
 
           <div className="doctor-login-footer">
             <p className="footer-notice" style={{ marginBottom: '8px' }}>
-              Don't have an account?
+              Don't have a patient account?
             </p>
             <button
               className="auth-link-btn"
               style={{ fontSize: '0.9rem' }}
               onClick={onGoToRegister}
             >
-              Create Patient Account →
+              Register Patient Account →
             </button>
           </div>
         </div>
-      </main>
+      </div>
     </div>
   );
 }

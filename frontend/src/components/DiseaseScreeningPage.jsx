@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { predictDisease } from '../api';
-import { HeartPulse, Activity, Stethoscope, ArrowLeft, ArrowRight, AlertCircle, Loader2 } from 'lucide-react';
+import { HeartPulse, Activity, Stethoscope, ArrowLeft, ArrowRight, AlertCircle, Loader2, User, FileText, CheckCircle2 } from 'lucide-react';
 
 const DISEASE_CONFIGS = {
   heart: {
@@ -36,7 +36,7 @@ const DISEASE_CONFIGS = {
   }
 };
 
-export default function DiseaseScreeningPage({ selectedDisease, onBackToDashboard, onResultReceived }) {
+export default function DiseaseScreeningPage({ selectedDisease, selectedPatient, onBackToDashboard, onResultReceived }) {
   const diseaseKey = selectedDisease || 'heart';
   const config = DISEASE_CONFIGS[diseaseKey] || DISEASE_CONFIGS.heart;
   const IconComponent = config.icon;
@@ -46,21 +46,40 @@ export default function DiseaseScreeningPage({ selectedDisease, onBackToDashboar
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    setFormData(config.defaultValues);
+    if (selectedPatient?.extractedValues) {
+      const merged = { ...config.defaultValues };
+      Object.keys(selectedPatient.extractedValues).forEach((key) => {
+        const val = selectedPatient.extractedValues[key];
+        if (val !== null && val !== undefined && val !== '' && val !== 'Not found') {
+          merged[key] = val;
+        }
+      });
+      setFormData(merged);
+    } else {
+      setFormData(config.defaultValues);
+    }
     setError(null);
-  }, [diseaseKey]);
+  }, [diseaseKey, selectedPatient]);
 
   const handleInputChange = (field, value) => {
     setFormData((prev) => ({
       ...prev,
-      [field]: parseFloat(value) || 0
+      [field]: value === '' ? '' : (isNaN(value) ? value : parseFloat(value))
     }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
     setError(null);
+
+    // Validate no empty or invalid values remain
+    const missingKeys = Object.keys(formData).filter((k) => formData[k] === '' || formData[k] === null || formData[k] === undefined || Number.isNaN(formData[k]));
+    if (missingKeys.length > 0) {
+      setError('Some required values were not found or are incomplete. Please review and complete the remaining fields before prediction.');
+      return;
+    }
+
+    setLoading(true);
 
     try {
       const payload = { disease: diseaseKey, ...formData };
@@ -83,6 +102,61 @@ export default function DiseaseScreeningPage({ selectedDisease, onBackToDashboar
         </button>
       </div>
 
+      {selectedPatient && (
+        <div style={{
+          background: 'var(--bg-card)',
+          border: '1px solid var(--border-light)',
+          borderRadius: 'var(--radius-md)',
+          padding: '14px 18px',
+          marginBottom: '20px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '10px',
+          boxShadow: 'var(--shadow-sm)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{
+              width: '32px',
+              height: '32px',
+              borderRadius: '50%',
+              background: 'var(--bg-tertiary)',
+              color: 'var(--primary)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
+              <User size={16} />
+            </div>
+            <div>
+              <span style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-light)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                Patient Record
+              </span>
+              <p style={{ fontSize: '0.9rem', fontWeight: '700', color: 'var(--text-main)', margin: 0 }}>
+                {selectedPatient.selectedPatientName} {selectedPatient.selectedPatientId && <span style={{ fontWeight: '700', color: 'var(--primary)', fontSize: '0.85rem' }}>({selectedPatient.selectedPatientId})</span>}
+              </p>
+            </div>
+          </div>
+
+          {selectedPatient.reportFileName && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              background: 'var(--bg-tertiary)',
+              color: 'var(--primary)',
+              padding: '4px 12px',
+              borderRadius: '16px',
+              fontSize: '0.8rem',
+              fontWeight: '700'
+            }}>
+              <CheckCircle2 size={14} /> Auto-filled from: {selectedPatient.reportFileName}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Main Screening Form Card */}
       <div className="screening-card">
         <div className="screening-header">
@@ -92,14 +166,15 @@ export default function DiseaseScreeningPage({ selectedDisease, onBackToDashboar
             </div>
             <h2 className="screening-title">{config.title}</h2>
           </div>
-          <p className="screening-subtitle">Enter clinical screening inputs for Hybrid QML risk calculation.</p>
+          <p className="screening-subtitle">Enter clinical screening inputs for AI-assisted risk assessment using Hybrid QML.</p>
         </div>
 
         {error && (
-          <div className="form-error-banner">
+          <div className="form-error-banner" style={{ marginBottom: '20px' }}>
             <AlertCircle size={18} /> {error}
           </div>
         )}
+
 
         <form onSubmit={handleSubmit} className="screening-form">
           {/* HEART DISEASE FIELDS */}

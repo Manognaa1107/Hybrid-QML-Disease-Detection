@@ -1,0 +1,55 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /users/{userId} {
+
+      // A user can read their own profile.
+      // A doctor can read user profiles for patient selection.
+      allow read: if request.auth != null &&
+        (
+          request.auth.uid == userId ||
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "doctor" ||
+          request.auth.token.email == "doctor@hybridqml.com"
+        );
+
+      // Users can create only their own profile.
+      allow create: if request.auth != null &&
+        request.auth.uid == userId;
+
+      // Users can update only their own profile.
+      allow update: if request.auth != null &&
+        request.auth.uid == userId;
+
+      // Do not allow deleting profiles from the client.
+      allow delete: if false;
+    }
+
+    // Atomic counter for unique Patient ID generation (P101, P102, ...)
+    match /counters/{counterId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Screenings collection rules:
+    // - Patient can read screenings where patientUid == request.auth.uid
+    // - Doctor can create screenings
+    // - Patients CANNOT create, update, or delete screenings
+    match /screenings/{screeningId} {
+      allow read: if request.auth != null &&
+        (
+          resource.data.patientUid == request.auth.uid ||
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "doctor" ||
+          request.auth.token.email == "doctor@hybridqml.com"
+        );
+
+      allow create: if request.auth != null &&
+        (
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "doctor" ||
+          request.auth.token.email == "doctor@hybridqml.com"
+        );
+
+      allow update, delete: if false;
+    }
+  }
+}

@@ -6,9 +6,11 @@ import joblib
 import pandas as pd
 import numpy as np
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+
+from app.report_extractor import process_report_file
 
 # Try importing dill for deserializing VQC model
 try:
@@ -289,14 +291,40 @@ def get_breast_cancer_metadata():
     return bc_metadata
 
 
-@app.get("/metadata/lung-cancer")
-def get_lung_cancer_metadata():
-    if lc_metadata is None:
-        raise HTTPException(status_code=404, detail="Lung Cancer metadata not found.")
-    return lc_metadata
+@app.post("/extract-report")
+async def extract_report_endpoint(disease: str = Form(...), file: UploadFile = File(...)):
+    """
+    Disease-specific medical report extraction endpoint.
+    Accepts PDF, JPG, JPEG, PNG files and returns extracted clinical parameters.
+    """
+    if not file or not file.filename:
+        raise HTTPException(status_code=400, detail="No file was uploaded.")
+
+    ext = file.filename.lower().split(".")[-1]
+    if ext not in ["pdf", "jpg", "jpeg", "png"]:
+        raise HTTPException(
+            status_code=400,
+            detail="Please upload a PDF, JPG, JPEG, or PNG file."
+        )
+
+    try:
+        content = await file.read()
+        if not content or len(content) == 0:
+            raise HTTPException(status_code=400, detail="We couldn't extract readable information from this report.")
+
+        result = process_report_file(content, file.filename, disease)
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Unable to extract information from this report: {str(e)}"
+        )
 
 
 @app.post("/predict")
+
 def predict_vqc_endpoint(payload: dict):
     """
     Unified prediction endpoint supporting disease routing.

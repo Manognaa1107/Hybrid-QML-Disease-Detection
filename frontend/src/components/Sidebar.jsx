@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { LayoutDashboard, Stethoscope, BarChart3, Atom, UserCheck, LogOut } from 'lucide-react';
+import { LayoutDashboard, Stethoscope, BarChart3, Atom, UserCheck, LogOut, FileText, Clock } from 'lucide-react';
+
 import { useAuth } from '../context/AuthContext';
 import { signOut } from 'firebase/auth';
 import { auth } from '../lib/firebase';
@@ -56,23 +57,43 @@ export default function Sidebar({ currentView, setCurrentView, onNewScreening, o
               <span className="nav-text">Dashboard</span>
             </button>
 
-            {role !== 'patient' && (
-              <button
-                className={`nav-item ${isScreeningActive ? 'active' : ''}`}
-                onClick={() => handleNavClick(onNewScreening)}
-              >
-                <Stethoscope size={18} className="nav-icon-svg" />
-                <span className="nav-text">New Screening</span>
-              </button>
-            )}
+            {role === 'doctor' ? (
+              <>
+                <button
+                  className={`nav-item ${isScreeningActive ? 'active' : ''}`}
+                  onClick={() => handleNavClick(onNewScreening)}
+                >
+                  <Stethoscope size={18} className="nav-icon-svg" />
+                  <span className="nav-text">New Screening</span>
+                </button>
 
-            <button
-              className={`nav-item ${currentView === 'results' ? 'active' : ''}`}
-              onClick={() => handleNavClick(onOpenResults)}
-            >
-              <BarChart3 size={18} className="nav-icon-svg" />
-              <span className="nav-text">Prediction Results</span>
-            </button>
+                <button
+                  className={`nav-item ${currentView === 'results' ? 'active' : ''}`}
+                  onClick={() => handleNavClick(onOpenResults)}
+                >
+                  <BarChart3 size={18} className="nav-icon-svg" />
+                  <span className="nav-text">Prediction Results</span>
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  className={`nav-item ${currentView === 'my_reports' ? 'active' : ''}`}
+                  onClick={() => handleNavClick(() => setCurrentView('my_reports'))}
+                >
+                  <FileText size={18} className="nav-icon-svg" />
+                  <span className="nav-text">My Reports</span>
+                </button>
+
+                <button
+                  className={`nav-item ${currentView === 'screening_history' ? 'active' : ''}`}
+                  onClick={() => handleNavClick(() => setCurrentView('screening_history'))}
+                >
+                  <Clock size={18} className="nav-icon-svg" />
+                  <span className="nav-text">Screening History</span>
+                </button>
+              </>
+            )}
           </div>
 
           <div style={{ marginTop: 'auto', paddingTop: '16px', borderTop: '1px solid var(--border-light)' }}>
